@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waste2Wealth - คำนวณสูตรปุ๋ยแม่นยำ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Kanit', sans-serif; background-color: #f0f7f4; }</style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <div class="bg-green-700 rounded-[2rem] p-8 shadow-2xl mb-8 text-white flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold">WASTE 2 WEALTH PRO</h1>
+                <p class="opacity-80">ระบุสิ่งที่คุณมี เพื่อปลดล็อกสูตรที่ทำได้จริง</p>
+            </div>
+            <div class="hidden md:block text-5xl">🌱</div>
+        </div>
+
+        <div class="grid lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-1 bg-white p-6 rounded-3xl shadow-xl border border-green-100">
+                <h2 class="text-xl font-bold text-green-800 mb-6 flex items-center gap-2">📦 1. ติ๊กของที่มี</h2>
+                <div id="material-list" class="space-y-2 max-h-[450px] overflow-y-auto pr-2">
+                    </div>
+                <button onclick="calculateOptions()" class="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-2xl transition shadow-lg active:scale-95">
+                    🔎 ค้นหาสูตรที่ทำได้
+                </button>
+            </div>
+
+            <div class="lg:col-span-2">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">💡 2. เลือกสูตรที่คุณชอบ</h2>
+                <div id="recipe-options" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="col-span-full py-20 text-center text-gray-400 border-4 border-dashed rounded-3xl bg-white/50">
+                        <p>ติ๊กเลือกวัตถุดิบอย่างน้อย 1 อย่างต่อกลุ่ม</p>
+                        <p class="text-sm">(ต้องมีทั้งของสดสีเขียว และของแห้งสีน้ำตาล)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="recipe-modal" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-[2.5rem] max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8 shadow-2xl border-4 border-green-500">
+            <div id="modal-content"></div>
+            <button onclick="closeModal()" class="w-full mt-8 bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-2xl transition">ตกลง เริ่มลงมือทำ!</button>
+        </div>
+    </div>
+
+    <script>
+        const MATERIALS = [
+            { id: 'veg', name: 'เศษผักผลไม้', type: 'green' },
+            { id: 'manure_cow', name: 'มูลวัว (แห้ง)', type: 'green' },
+            { id: 'manure_chicken', name: 'มูลไก่', type: 'green' },
+            { id: 'coffee', name: 'กากกาแฟ', type: 'green' },
+            { id: 'grass', name: 'เศษหญ้าสด', type: 'green' },
+            { id: 'leaves', name: 'ใบไม้แห้ง', type: 'brown' },
+            { id: 'straw', name: 'ฟางข้าว', type: 'brown' },
+            { id: 'husk', name: 'แกลบดิบ', type: 'brown' },
+            { id: 'sawdust', name: 'ขี้เลื่อย', type: 'brown' },
+            { id: 'corn', name: 'ซังข้าวโพด', type: 'brown' },
+            { id: 'eggshell', name: 'เปลือกไข่บด', type: 'mineral' }
+        ];
+
+        // เก็บข้อมูลที่ผู้ใช้เลือกไว้ในตัวแปร Global เพื่อความเสถียร
+        let globalSelectedGreens = [];
+        let globalSelectedBrowns = [];
+        let globalHasEgg = false;
+
+        const listDiv = document.getElementById('material-list');
+        MATERIALS.forEach(item => {
+            const typeLabel = item.type === 'green' ? 'สด/ไนโตรเจน' : item.type === 'brown' ? 'แห้ง/คาร์บอน' : 'แร่ธาตุ';
+            const dotColor = item.type === 'green' ? 'bg-green-500' : item.type === 'brown' ? 'bg-orange-500' : 'bg-blue-500';
+            listDiv.innerHTML += `
+                <label class="flex items-center p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition">
+                    <input type="checkbox" value="${item.id}" class="w-5 h-5 accent-green-600 mr-3">
+                    <div class="flex-1">
+                        <div class="font-bold text-gray-700 text-sm">${item.name}</div>
+                        <div class="flex items-center gap-1 text-[10px] text-gray-400">
+                            <span class="w-2 h-2 rounded-full ${dotColor}"></span> ${typeLabel}
+                        </div>
+                    </div>
+                </label>
+            `;
+        });
+
+        function calculateOptions() {
+            const checkboxes = Array.from(document.querySelectorAll('input[type="checkbox"]:checked'));
+            const checkedIds = checkboxes.map(el => el.value);
+            const container = document.getElementById('recipe-options');
+            
+            const selected = MATERIALS.filter(m => checkedIds.includes(m.id));
+            globalSelectedGreens = selected.filter(m => m.type === 'green');
+            globalSelectedBrowns = selected.filter(m => m.type === 'brown');
+            globalHasEgg = checkedIds.includes('eggshell');
+
+            if (globalSelectedGreens.length === 0 || globalSelectedBrowns.length === 0) {
+                alert("กรุณาเลือกวัตถุดิบทั้งกลุ่ม 'สด' (Green) และ 'แห้ง' (Brown) ผสมกันเพื่อให้จุลินทรีย์ทำงานได้ครับ");
+                return;
+            }
+
+            container.innerHTML = '';
+            
+            // สูตรที่ 1
+            addRecipeCard("fast", "🚀 สูตรเร่งด่วน (ร้อนไว)", "เน้นสลายตัวเร็ว เหมาะสำหรับคนมีมูลสัตว์");
+            // สูตรที่ 2
+            addRecipeCard("balance", "⚖️ สูตรสมดุล (สูตรแม่นยำ)", "คุณภาพดีที่สุด สารอาหารครบถ้วน");
+            // สูตรที่ 3
+            addRecipeCard("soil", "🪵 สูตรปรับปรุงดิน (High-C)", "เน้นการเพิ่มอินทรียวัตถุให้ดินระยะยาว");
+        }
+
+        function addRecipeCard(id, title, desc) {
+            const container = document.getElementById('recipe-options');
+            container.innerHTML += `
+                <div onclick="openRecipeModal('${id}')" 
+                     class="bg-white p-6 rounded-3xl shadow-md border-b-4 border-green-500 hover:scale-[1.03] transition cursor-pointer active:bg-green-50">
+                    <h3 class="font-bold text-lg text-green-800">${title}</h3>
+                    <p class="text-xs text-gray-500 mt-2">${desc}</p>
+                    <div class="mt-4 text-sm font-bold text-green-600 flex items-center">
+                        คลิกเพื่อดูสัดส่วนจริง <span class="ml-1">→</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openRecipeModal(recipeType) {
+            const modal = document.getElementById('recipe-modal');
+            const content = document.getElementById('modal-content');
+            
+            const greenNames = globalSelectedGreens.map(g => g.name).join(' + ');
+            const brownNames = globalSelectedBrowns.map(b => b.name).join(' + ');
+
+            let ratioText = "";
+            let recipeName = "";
+
+            if (recipeType === 'fast') {
+                recipeName = "สูตรเร่งด่วน (ร้อนไว)";
+                ratioText = `ผสม <b>${greenNames}</b> 1 ส่วน ต่อ <b>${brownNames}</b> 1 ส่วน`;
+            } else if (recipeType === 'balance') {
+                recipeName = "สูตรสมดุลแม่นยำ";
+                ratioText = `ผสม <b>${greenNames}</b> 1 ส่วน ต่อ <b>${brownNames}</b> 3 ส่วน`;
+            } else {
+                recipeName = "สูตรปรับปรุงดินระยะยาว";
+                ratioText = `ผสม <b>${greenNames}</b> 1 ส่วน ต่อ <b>${brownNames}</b> 4 ส่วนขึ้นไป`;
+            }
+
+            content.innerHTML = `
+                <div class="mb-6">
+                    <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Recipe Details</span>
+                    <h2 class="text-3xl font-bold text-gray-800 mt-2">${recipeName}</h2>
+                </div>
+
+                <div class="bg-gradient-to-br from-green-50 to-white p-6 rounded-3xl border-2 border-green-100 mb-8 shadow-inner">
+                    <p class="font-bold text-green-800 mb-3 text-lg italic underline">อัตราส่วนผสมเฉพาะของคุณ:</p>
+                    <p class="text-xl text-green-900 leading-relaxed">${ratioText}</p>
+                    ${globalHasEgg ? '<div class="mt-4 p-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold">✨ พิเศษ: เพิ่มเปลือกไข่บดเพื่อเพิ่มแร่ธาตุ</div>' : ''}
+                </div>
+
+                <div class="space-y-6">
+                    <h3 class="font-bold text-gray-800 flex items-center gap-2">🛠 ขั้นตอนการทำจริง:</h3>
+                    <ul class="space-y-4">
+                        <li class="flex gap-4">
+                            <div class="w-6 h-6 bg-green-600 text-white text-xs rounded-full flex items-center justify-center flex-none mt-1">1</div>
+                            <p class="text-gray-600">สับ <b>${brownNames}</b> ให้เป็นชิ้นเล็กเพื่อให้ย่อยสลายง่ายขึ้น</p>
+                        </li>
+                        <li class="flex gap-4">
+                            <div class="w-6 h-6 bg-green-600 text-white text-xs rounded-full flex items-center justify-center flex-none mt-1">2</div>
+                            <p class="text-gray-600">นำไปคลุกเคล้ากับ <b>${greenNames}</b> ตามสัดส่วนด้านบน</p>
+                        </li>
+                        <li class="flex gap-4">
+                            <div class="w-6 h-6 bg-green-600 text-white text-xs rounded-full flex items-center justify-center flex-none mt-1">3</div>
+                            <p class="text-gray-600">รดน้ำให้มีความชื้น 60% (เมื่อกำวัตถุดิบแล้วมีน้ำซึมตามร่องนิ้วแต่ไม่หยด)</p>
+                        </li>
+                        <li class="flex gap-4">
+                            <div class="w-6 h-6 bg-green-600 text-white text-xs rounded-full flex items-center justify-center flex-none mt-1">4</div>
+                            <p class="text-gray-600">กองไว้ในที่ร่ม กลับกองทุก 10 วัน เพื่อระบายความร้อนและเพิ่มอากาศ</p>
+                        </li>
+                    </ul>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('recipe-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
